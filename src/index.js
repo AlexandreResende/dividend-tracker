@@ -13,30 +13,34 @@ function openFile(filePath) {
   exec(`${cmd} "${filePath}"`);
 }
 
-async function main() {
-  const tickersEnv = process.env.TICKERS;
-  if (!tickersEnv) {
-    console.error('Erro: variavel TICKERS nao definida no arquivo .env');
+function loadHoldings() {
+  const tickersPath = path.join(__dirname, '..', 'tickers.json');
+  if (!fs.existsSync(tickersPath)) {
+    console.error('Erro: arquivo tickers.json nao encontrado. Copie tickers.json.example para tickers.json e preencha suas posicoes.');
     process.exit(1);
   }
 
-  // Parse each lot entry (TICKER:QUANTITY:DATE)
+  const entries = JSON.parse(fs.readFileSync(tickersPath, 'utf-8'));
   const lotsMap = {};
-  for (const entry of tickersEnv.split(',')) {
-    const [ticker, qty, dateStr] = entry.trim().toUpperCase().split(':');
-    const quantity = parseInt(qty, 10);
-    const purchaseDate = new Date(dateStr);
 
-    if (!ticker || !quantity || isNaN(purchaseDate.getTime())) {
-      console.error(`Erro: entrada invalida "${entry.trim()}". Use o formato TICKER:QUANTIDADE:YYYY-MM-DD.`);
+  for (const { ticker, quantity, buyDate } of entries) {
+    const key = ticker.toUpperCase();
+    const purchaseDate = new Date(buyDate);
+
+    if (!key || !quantity || isNaN(purchaseDate.getTime())) {
+      console.error(`Erro: entrada invalida ${JSON.stringify({ ticker, quantity, buyDate })}. Campos obrigatorios: ticker, quantity, buyDate (YYYY-MM-DD).`);
       process.exit(1);
     }
 
-    if (!lotsMap[ticker]) lotsMap[ticker] = { ticker, lots: [] };
-    lotsMap[ticker].lots.push({ quantity, purchaseDate });
+    if (!lotsMap[key]) lotsMap[key] = { ticker: key, lots: [] };
+    lotsMap[key].lots.push({ quantity, purchaseDate });
   }
 
-  const holdings = Object.values(lotsMap);
+  return Object.values(lotsMap);
+}
+
+async function main() {
+  const holdings = loadHoldings();
 
   console.log(`Buscando dividendos para: ${holdings.map((h) => {
     const total = h.lots.reduce((s, l) => s + l.quantity, 0);

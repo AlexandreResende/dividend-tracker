@@ -29,14 +29,31 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your lots. The same ticker can appear multiple times to represent position increases:
+Edit `.env` and add your [brapi](https://brapi.dev) token:
 
 ```env
-# Each entry is TICKER:QUANTITY:BUY_DATE — repeat a ticker for each purchase
-TICKERS=PETR4:100:2026-06-01,PETR4:200:2026-09-15,VALE3:200:2026-03-15,ITUB4:150:2025-12-10
+BRAPI_TOKEN=your_token_here
+```
+
+**3. Add your portfolio positions**
+
+```bash
+cp tickers.json.example tickers.json
+```
+
+Edit `tickers.json` with your lots. The same ticker can appear multiple times to represent position increases:
+
+```json
+[
+  { "ticker": "PETR4", "quantity": 100, "buyDate": "2024-01-10" },
+  { "ticker": "PETR4", "quantity": 200, "buyDate": "2024-09-15" },
+  { "ticker": "VALE3", "quantity": 150, "buyDate": "2023-06-01" }
+]
 ```
 
 Each lot has its own buy date. For each dividend payment, only the lots purchased on or before that payment date count toward the total, so position increases are accounted for correctly.
+
+`tickers.json` is gitignored so your real holdings are never committed.
 
 ## Usage
 
@@ -79,9 +96,11 @@ Logs are written to `cron.log` in the project root.
 ```
 dividend-tracker/
 ├── src/
-│   ├── index.js          # Entry point — reads .env, orchestrates the run, opens report
+│   ├── index.js          # Entry point — loads holdings, orchestrates the run, opens report
 │   ├── fetchDividends.js # Fetches price and dividend history from Yahoo Finance
 │   └── generateHtml.js   # Builds the styled HTML report
+├── tickers.json          # Your portfolio positions (gitignored)
+├── tickers.json.example  # Position file template
 ├── .env                  # Your local config (gitignored)
 ├── .env.example          # Config template
 ├── report.html           # Generated report (gitignored)

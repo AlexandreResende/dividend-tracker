@@ -1,0 +1,6 @@
+[
+  { "ticker": "PETR4", "quantity": 100, "buyDate": "2024-01-10" },
+  { "ticker": "PETR4", "quantity": 200, "buyDate": "2024-09-15" },
+  { "ticker": "VALE3", "quantity": 150, "buyDate": "2023-06-01" },
+  { "ticker": "ITUB4", "quantity": 300, "buyDate": "2022-11-20" }
+]

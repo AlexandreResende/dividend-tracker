@@ -74,6 +74,10 @@ web_modules/
 .env.*
 !.env.example
 
+# Portfolio positions — never commit real holdings
+tickers.json
+!tickers.json.example
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
