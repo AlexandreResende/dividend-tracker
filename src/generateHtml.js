@@ -18,24 +18,48 @@ function formatPercent(value) {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+// Returns the number of shares that were held on a given dividend date
+function effectiveQuantity(lots, dividendDate) {
+  return lots
+    .filter((lot) => lot.purchaseDate <= dividendDate)
+    .reduce((sum, lot) => sum + lot.quantity, 0);
+}
+
 function buildStockCard(stock) {
   const currentYear = new Date().getFullYear();
-  const dividends = stock.dividends ?? [];
+  const { lots, dividends: rawDividends } = stock;
+  const dividends = rawDividends ?? [];
   const sorted = [...dividends].sort((a, b) => new Date(b.date) - new Date(a.date));
-  const stockTotal = sorted.reduce((sum, d) => sum + d.dividends * stock.quantity, 0);
+
+  const totalQuantity = lots.reduce((s, l) => s + l.quantity, 0);
+
+  const stockTotal = sorted.reduce((sum, d) => {
+    return sum + effectiveQuantity(lots, d.date) * d.dividends;
+  }, 0);
+
   const stockYearTotal = sorted
     .filter((d) => new Date(d.date).getUTCFullYear() === currentYear)
-    .reduce((sum, d) => sum + d.dividends * stock.quantity, 0);
+    .reduce((sum, d) => sum + effectiveQuantity(lots, d.date) * d.dividends, 0);
+
+  const lotsRows = lots
+    .slice()
+    .sort((a, b) => a.purchaseDate - b.purchaseDate)
+    .map((lot) => `
+      <tr class="lot-row">
+        <td>${formatDate(lot.purchaseDate)}</td>
+        <td class="num">${lot.quantity.toLocaleString('pt-BR')} ações</td>
+      </tr>`).join('');
 
   const dividendRows = sorted.length === 0
     ? `<tr><td colspan="4" class="empty">Sem dividendos desde a data de compra.</td></tr>`
     : sorted.map((div) => {
-        const total = div.dividends * stock.quantity;
+        const qty = effectiveQuantity(lots, div.date);
+        const total = qty * div.dividends;
         return `
         <tr>
           <td>${formatDate(div.date)}</td>
           <td class="num">${formatCurrency(div.dividends)}</td>
-          <td class="num">${stock.quantity.toLocaleString('pt-BR')}</td>
+          <td class="num">${qty.toLocaleString('pt-BR')}</td>
           <td class="num total-cell">${formatCurrencyTotal(total)}</td>
         </tr>`;
       }).join('');
@@ -51,8 +75,12 @@ function buildStockCard(stock) {
     </div>
     <div class="card-meta">
       <div class="meta-item">
-        <span class="meta-label">Quantidade</span>
-        <span class="meta-value">${stock.quantity.toLocaleString('pt-BR')} ações</span>
+        <span class="meta-label">Total de ações</span>
+        <span class="meta-value">${totalQuantity.toLocaleString('pt-BR')} ações</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Lotes</span>
+        <span class="meta-value">${lots.length}</span>
       </div>
       <div class="meta-item">
         <span class="meta-label">Preço atual</span>
@@ -63,7 +91,7 @@ function buildStockCard(stock) {
         <span class="meta-value yield">${formatPercent(stock.dividendYield)}</span>
       </div>
       <div class="meta-item">
-        <span class="meta-label">Total a receber</span>
+        <span class="meta-label">Total recebido</span>
         <span class="meta-value highlight">${formatCurrencyTotal(stockTotal)}</span>
       </div>
       <div class="meta-item">
@@ -71,12 +99,24 @@ function buildStockCard(stock) {
         <span class="meta-value highlight">${formatCurrencyTotal(stockYearTotal)}</span>
       </div>
     </div>
+    <div class="lots-section">
+      <div class="lots-title">Lotes comprados</div>
+      <table class="lots-table">
+        <thead>
+          <tr>
+            <th>Data de compra</th>
+            <th class="num">Quantidade</th>
+          </tr>
+        </thead>
+        <tbody>${lotsRows}</tbody>
+      </table>
+    </div>
     <table>
       <thead>
         <tr>
           <th>Data de pagamento</th>
           <th class="num">Valor por ação</th>
-          <th class="num">Quantidade</th>
+          <th class="num">Ações elegíveis</th>
           <th class="num">Total</th>
         </tr>
       </thead>
@@ -87,16 +127,20 @@ function buildStockCard(stock) {
   </div>`;
 }
 
-function generateHtml(results, purchaseDate) {
+function generateHtml(results) {
   const currentYear = new Date().getFullYear();
   const today = new Date().toLocaleDateString('pt-BR');
+
   const grandTotal = results.reduce((sum, stock) => {
-    return sum + (stock.dividends ?? []).reduce((s, d) => s + d.dividends * stock.quantity, 0);
+    return sum + (stock.dividends ?? []).reduce((s, d) => {
+      return s + effectiveQuantity(stock.lots, d.date) * d.dividends;
+    }, 0);
   }, 0);
+
   const grandYearTotal = results.reduce((sum, stock) => {
     return sum + (stock.dividends ?? [])
       .filter((d) => new Date(d.date).getUTCFullYear() === currentYear)
-      .reduce((s, d) => s + d.dividends * stock.quantity, 0);
+      .reduce((s, d) => s + effectiveQuantity(stock.lots, d.date) * d.dividends, 0);
   }, 0);
 
   const cards = results.map(buildStockCard).join('');
@@ -140,10 +184,6 @@ function generateHtml(results, purchaseDate) {
     header h1 span { color: #48bb78; }
 
     .header-meta {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.25rem;
       font-size: 0.8rem;
       color: #718096;
     }
@@ -216,18 +256,16 @@ function generateHtml(results, purchaseDate) {
     .ticker-info { display: flex; align-items: baseline; gap: 0.75rem; }
     .ticker { font-size: 1.1rem; font-weight: 700; color: #fff; }
     .long-name { font-size: 0.85rem; color: #718096; }
-
     .card-total { font-size: 1.1rem; font-weight: 700; color: #48bb78; }
 
     .card-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 0;
       border-bottom: 1px solid #2d3748;
     }
 
     .meta-item {
-      flex: 1 1 140px;
+      flex: 1 1 130px;
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
@@ -241,6 +279,43 @@ function generateHtml(results, purchaseDate) {
     .meta-value { font-size: 0.95rem; font-weight: 600; color: #e2e8f0; }
     .meta-value.yield { color: #63b3ed; }
     .meta-value.highlight { color: #48bb78; }
+
+    .lots-section {
+      border-bottom: 1px solid #2d3748;
+      padding: 0.75rem 1.5rem;
+      background: #161c28;
+    }
+
+    .lots-title {
+      font-size: 0.7rem;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .lots-table {
+      width: auto;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .lots-table th {
+      padding: 0.25rem 1rem 0.25rem 0;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+    }
+
+    .lot-row td {
+      padding: 0.25rem 1rem 0.25rem 0;
+      border-top: 1px solid #2d3748;
+      color: #a0aec0;
+      font-size: 0.82rem;
+    }
 
     table {
       width: 100%;
@@ -284,16 +359,13 @@ function generateHtml(results, purchaseDate) {
 <body>
   <header>
     <h1>Dividend <span>Tracker</span></h1>
-    <div class="header-meta">
-      <span>Gerado em ${today}</span>
-      <span>Data de compra: ${formatDate(purchaseDate)}</span>
-    </div>
+    <div class="header-meta">Gerado em ${today}</div>
   </header>
 
   <div class="grand-total-bar">
     <div class="totals">
       <div class="total-group">
-        <span class="label">Total geral a receber</span>
+        <span class="label">Total recebido</span>
         <span class="amount">${formatCurrencyTotal(grandTotal)}</span>
       </div>
       <div class="total-group">

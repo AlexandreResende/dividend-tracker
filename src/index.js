@@ -20,36 +20,32 @@ async function main() {
     process.exit(1);
   }
 
-  const purchaseDateEnv = process.env.PURCHASE_DATE;
-  if (!purchaseDateEnv) {
-    console.error('Erro: variavel PURCHASE_DATE nao definida no arquivo .env');
-    process.exit(1);
+  // Parse each lot entry (TICKER:QUANTITY:DATE)
+  const lotsMap = {};
+  for (const entry of tickersEnv.split(',')) {
+    const [ticker, qty, dateStr] = entry.trim().toUpperCase().split(':');
+    const quantity = parseInt(qty, 10);
+    const purchaseDate = new Date(dateStr);
+
+    if (!ticker || !quantity || isNaN(purchaseDate.getTime())) {
+      console.error(`Erro: entrada invalida "${entry.trim()}". Use o formato TICKER:QUANTIDADE:YYYY-MM-DD.`);
+      process.exit(1);
+    }
+
+    if (!lotsMap[ticker]) lotsMap[ticker] = { ticker, lots: [] };
+    lotsMap[ticker].lots.push({ quantity, purchaseDate });
   }
 
-  const purchaseDate = new Date(purchaseDateEnv);
-  if (isNaN(purchaseDate.getTime())) {
-    console.error('Erro: PURCHASE_DATE invalida. Use o formato YYYY-MM-DD.');
-    process.exit(1);
-  }
+  const holdings = Object.values(lotsMap);
 
-  const holdings = tickersEnv
-    .split(',')
-    .map((entry) => {
-      const [ticker, qty] = entry.trim().toUpperCase().split(':');
-      return { ticker, quantity: parseInt(qty, 10) || 0 };
-    })
-    .filter(({ ticker, quantity }) => ticker && quantity > 0);
-
-  if (holdings.length === 0) {
-    console.error('Erro: nenhum ticker valido encontrado. Use o formato TICKER:QUANTIDADE.');
-    process.exit(1);
-  }
-
-  console.log(`Buscando dividendos para: ${holdings.map((h) => `${h.ticker} (${h.quantity})`).join(', ')}...`);
+  console.log(`Buscando dividendos para: ${holdings.map((h) => {
+    const total = h.lots.reduce((s, l) => s + l.quantity, 0);
+    return `${h.ticker} (${total} acoes em ${h.lots.length} lote${h.lots.length > 1 ? 's' : ''})`;
+  }).join(', ')}...`);
 
   try {
-    const results = await fetchDividends(holdings, purchaseDate);
-    const html = generateHtml(results, purchaseDate);
+    const results = await fetchDividends(holdings);
+    const html = generateHtml(results);
 
     const reportPath = path.join(__dirname, '..', 'report.html');
     fs.writeFileSync(reportPath, html, 'utf-8');

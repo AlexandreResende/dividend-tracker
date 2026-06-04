@@ -29,15 +29,14 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your tickers, quantities, and purchase date:
+Edit `.env` with your lots. The same ticker can appear multiple times to represent position increases:
 
 ```env
-# Comma-separated list of B3 tickers with quantity owned (TICKER:QUANTITY)
-TICKERS=PETR4:100,VALE3:200,ITUB4:150
-
-# Date you bought the stocks — only dividends from this date onward will be shown
-PURCHASE_DATE=2026-06-01
+# Each entry is TICKER:QUANTITY:BUY_DATE — repeat a ticker for each purchase
+TICKERS=PETR4:100:2026-06-01,PETR4:200:2026-09-15,VALE3:200:2026-03-15,ITUB4:150:2025-12-10
 ```
+
+Each lot has its own buy date. For each dividend payment, only the lots purchased on or before that payment date count toward the total, so position increases are accounted for correctly.
 
 ## Usage
 
